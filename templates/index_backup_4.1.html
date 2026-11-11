@@ -1,0 +1,459 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UNCLED LIGA PRO 4.1</title>
+
+<style>
+* { box-sizing:border-box; }
+
+body {
+    background:#10111b;
+    color:white;
+    font-family:Arial,sans-serif;
+    margin:0;
+}
+
+header {
+    background:#191a2b;
+    padding:22px;
+    border-bottom:2px solid #7929d2;
+}
+
+h1 { color:#b77aff; margin:0; }
+
+main { max-width:1200px; margin:auto; padding:22px; }
+
+.card {
+    background:#1c1e30;
+    padding:22px;
+    border-radius:12px;
+    margin-bottom:20px;
+    overflow-x:auto;
+}
+
+.stats {
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+    gap:15px;
+}
+
+.stat {
+    background:#292b40;
+    padding:18px;
+    border-radius:10px;
+}
+
+.stat h2 { color:#b77aff; }
+
+input,select,button {
+    width:100%;
+    padding:12px;
+    margin-top:8px;
+    margin-bottom:15px;
+    border-radius:7px;
+    border:none;
+}
+
+button {
+    background:#7929d2;
+    color:white;
+    font-weight:bold;
+    cursor:pointer;
+}
+
+table {
+    width:100%;
+    border-collapse:collapse;
+    min-width:650px;
+}
+
+th,td {
+    padding:12px 7px;
+    border-bottom:1px solid #393b50;
+    text-align:left;
+}
+
+th { color:#b77aff; }
+
+.message,.result {
+    background:#292b40;
+    padding:15px;
+    margin-bottom:12px;
+    border-radius:8px;
+}
+
+.probability {
+    color:#40dc91;
+    font-size:26px;
+    font-weight:bold;
+}
+
+.confidence { color:#ffcc66; }
+.correct { color:#40dc91; }
+.incorrect { color:#ff7272; }
+.pending { color:#ffcc66; }
+
+.badge {
+    padding:5px 9px;
+    border-radius:5px;
+    background:#34364c;
+}
+
+footer {
+    text-align:center;
+    color:#999;
+    padding:25px;
+}
+
+@media(max-width:600px) {
+    main { padding:12px; }
+    .card { padding:15px; }
+}
+</style>
+</head>
+
+<body>
+
+<header>
+<h1>UNCLED LIGA PRO</h1>
+<p>Table Tennis Prediction Engine 4.1</p>
+</header>
+
+<main>
+
+{% with messages = get_flashed_messages() %}
+{% for message in messages %}
+<div class="message">{{ message }}</div>
+{% endfor %}
+{% endwith %}
+
+<div class="card">
+<h2>System Dashboard</h2>
+<p style="color:#40dc91">● System Online</p>
+
+<div class="stats">
+<div class="stat">
+<h2>{{ player_count }}</h2>
+Players
+</div>
+
+<div class="stat">
+<h2>{{ match_count }}</h2>
+Recorded Matches
+</div>
+
+<div class="stat">
+<h2>{{ analytics.prediction_count }}</h2>
+Total Predictions
+</div>
+
+<div class="stat">
+<h2>{{ analytics.accuracy }}%</h2>
+Prediction Accuracy
+</div>
+</div>
+</div>
+
+<div class="card">
+<h2>Prediction Performance</h2>
+
+<div class="stats">
+<div class="stat">
+<h2 class="correct">{{ analytics.correct }}</h2>
+Correct Predictions
+</div>
+
+<div class="stat">
+<h2 class="incorrect">{{ analytics.incorrect }}</h2>
+Incorrect Predictions
+</div>
+
+<div class="stat">
+<h2 class="pending">{{ analytics.pending }}</h2>
+Pending Predictions
+</div>
+
+<div class="stat">
+<h2>{{ analytics.evaluated }}</h2>
+Evaluated Predictions
+</div>
+</div>
+
+<p>Only predictions linked to completed fixtures are evaluated automatically.</p>
+</div>
+
+<div class="card">
+<h2>Player Performance & ELO Ratings</h2>
+
+{% if player_stats %}
+<table>
+<tr>
+<th>Player</th>
+<th>Played</th>
+<th>Wins</th>
+<th>Losses</th>
+<th>Win %</th>
+<th>ELO</th>
+<th>Recent Form</th>
+</tr>
+
+{% for player in player_stats %}
+<tr>
+<td>{{ player.name }}</td>
+<td>{{ player.played }}</td>
+<td>{{ player.wins }}</td>
+<td>{{ player.losses }}</td>
+<td>{{ player.percentage }}%</td>
+<td>{{ player.rating }}</td>
+<td>{{ player.form }}</td>
+</tr>
+{% endfor %}
+</table>
+{% else %}
+<p>No player records yet.</p>
+{% endif %}
+</div>
+
+<div class="card">
+<h2>1. Create Upcoming Fixture</h2>
+<p>Create a fixture before predicting it. This connects predictions to the correct match.</p>
+
+<form method="POST" action="/fixture">
+
+<label>Player 1</label>
+<select name="player1" required>
+<option value="">Select player</option>
+{% for player in player_stats %}
+<option value="{{ player.name }}">{{ player.name }}</option>
+{% endfor %}
+</select>
+
+<label>Player 2</label>
+<select name="player2" required>
+<option value="">Select player</option>
+{% for player in player_stats %}
+<option value="{{ player.name }}">{{ player.name }}</option>
+{% endfor %}
+</select>
+
+<label>Scheduled Match Date</label>
+<input type="date" name="scheduled_date" value="{{ today }}" required>
+
+<button type="submit">CREATE FIXTURE</button>
+</form>
+</div>
+
+<div class="card">
+<h2>2. Match Prediction Engine</h2>
+<p>Choose players and optionally attach your prediction to an upcoming fixture.</p>
+
+<form method="POST" action="/predict">
+
+<label>First Player</label>
+<select name="player1" required>
+<option value="">Select player</option>
+{% for player in player_stats %}
+<option value="{{ player.name }}">{{ player.name }}</option>
+{% endfor %}
+</select>
+
+<label>Second Player</label>
+<select name="player2" required>
+<option value="">Select player</option>
+{% for player in player_stats %}
+<option value="{{ player.name }}">{{ player.name }}</option>
+{% endfor %}
+</select>
+
+<label>Upcoming Fixture (optional)</label>
+<select name="fixture_id">
+<option value="">General prediction – no fixture</option>
+{% for fixture in fixtures %}
+{% if fixture.status == 'UPCOMING' %}
+<option value="{{ fixture.id }}">
+#{{ fixture.id }} – {{ fixture.player1 }} vs {{ fixture.player2 }} ({{ fixture.scheduled_date }})
+</option>
+{% endif %}
+{% endfor %}
+</select>
+
+<button type="submit">ANALYSE MATCH</button>
+</form>
+
+{% if prediction %}
+<div class="result">
+<h3>Prediction Results – #{{ prediction.id }}</h3>
+
+<p>{{ prediction.player1 }} (ELO {{ prediction.rating1 }})</p>
+<div class="probability">{{ prediction.probability1 }}%</div>
+
+<p>{{ prediction.player2 }} (ELO {{ prediction.rating2 }})</p>
+<div class="probability">{{ prediction.probability2 }}%</div>
+
+<hr>
+
+<p>Predicted winner: <strong>{{ prediction.predicted_winner }}</strong></p>
+
+<p>Recent form: {{ prediction.player1 }} — {{ prediction.form1 }}</p>
+<p>Recent form: {{ prediction.player2 }} — {{ prediction.form2 }}</p>
+
+<p>Head-to-head matches: {{ prediction.h2h_total }}</p>
+<p class="confidence">Data confidence: {{ prediction.confidence }}</p>
+
+<p>Probabilities are statistical estimates, not guaranteed outcomes.</p>
+</div>
+{% endif %}
+</div>
+
+<div class="card">
+<h2>3. Upcoming Fixtures & Result Entry</h2>
+
+{% if fixtures %}
+<table>
+<tr>
+<th>ID</th>
+<th>Player 1</th>
+<th>Player 2</th>
+<th>Scheduled Date</th>
+<th>Status</th>
+<th>Result</th>
+</tr>
+
+{% for fixture in fixtures %}
+<tr>
+<td>{{ fixture.id }}</td>
+<td>{{ fixture.player1 }}</td>
+<td>{{ fixture.player2 }}</td>
+<td>{{ fixture.scheduled_date }}</td>
+<td>{{ fixture.status }}</td>
+<td>
+{% if fixture.status == 'UPCOMING' %}
+<form method="POST" action="/fixture/{{ fixture.id }}/result">
+
+<select name="winner" required>
+<option value="">Select winner</option>
+<option value="{{ fixture.player1 }}">{{ fixture.player1 }}</option>
+<option value="{{ fixture.player2 }}">{{ fixture.player2 }}</option>
+</select>
+
+<input type="date" name="match_date" value="{{ today }}" required>
+
+<button type="submit">SAVE RESULT</button>
+</form>
+{% else %}
+<span class="correct">{{ fixture.winner }}</span>
+{% endif %}
+</td>
+</tr>
+{% endfor %}
+</table>
+{% else %}
+<p>No fixtures created yet.</p>
+{% endif %}
+</div>
+
+<div class="card">
+<h2>4. Record Completed Match Without Prediction</h2>
+<p>This updates player statistics and ELO without evaluating unrelated predictions.</p>
+
+<form method="POST" action="/">
+
+<label>Player A</label>
+<input type="text" name="player1" placeholder="Enter first player" required>
+
+<label>Player B</label>
+<input type="text" name="player2" placeholder="Enter second player" required>
+
+<label>Match Winner</label>
+<select name="winner" required>
+<option value="">Select winner</option>
+<option value="player1">Player A</option>
+<option value="player2">Player B</option>
+</select>
+
+<label>Match Date</label>
+<input type="date" name="match_date" value="{{ today }}" required>
+
+<button type="submit">SAVE COMPLETED MATCH</button>
+</form>
+</div>
+
+<div class="card">
+<h2>Prediction History</h2>
+
+{% if prediction_history %}
+<table>
+<tr>
+<th>ID</th>
+<th>Date</th>
+<th>Player 1</th>
+<th>Player 2</th>
+<th>Probabilities</th>
+<th>Predicted</th>
+<th>Actual</th>
+<th>Status</th>
+</tr>
+
+{% for p in prediction_history %}
+<tr>
+<td>{{ p.id }}</td>
+<td>{{ p.prediction_date }}</td>
+<td>{{ p.player1 }}</td>
+<td>{{ p.player2 }}</td>
+<td>{{ p.probability1 }}% / {{ p.probability2 }}%</td>
+<td>{{ p.predicted_winner }}</td>
+<td>{{ p.actual_winner or "—" }}</td>
+<td>
+{% if p.evaluated %}
+    {% if p.predicted_winner == p.actual_winner %}
+        <span class="correct">CORRECT</span>
+    {% else %}
+        <span class="incorrect">INCORRECT</span>
+    {% endif %}
+{% else %}
+    <span class="pending">PENDING</span>
+{% endif %}
+</td>
+</tr>
+{% endfor %}
+</table>
+{% else %}
+<p>No predictions recorded yet.</p>
+{% endif %}
+</div>
+
+<div class="card">
+<h2>Match History</h2>
+
+{% if matches %}
+<table>
+<tr>
+<th>Date</th>
+<th>Player A</th>
+<th>Player B</th>
+<th>Winner</th>
+</tr>
+
+{% for match in matches %}
+<tr>
+<td>{{ match.match_date }}</td>
+<td>{{ match.player1 }}</td>
+<td>{{ match.player2 }}</td>
+<td class="correct">{{ match.winner }}</td>
+</tr>
+{% endfor %}
+</table>
+{% else %}
+<p>No matches recorded yet.</p>
+{% endif %}
+</div>
+
+</main>
+
+<footer>UNCLED TECHNOLOGY | Liga Pro Analytics 4.1</footer>
+
+</body>
+</html>
