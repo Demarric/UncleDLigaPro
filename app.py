@@ -5,7 +5,7 @@ import sqlite3
 from datetime import date, datetime
 
 app = Flask(__name__)
-app.secret_key = os.environ["SECRET_KEY"]
+app.secret_key = os.environ["UNCLED_LIGA_PRO_KEY"]
 
 INITIAL_RATING = 1000
 K_FACTOR = 24
