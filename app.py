@@ -1,10 +1,11 @@
 
 from flask import Flask, render_template, request, redirect, flash
+import os
 import sqlite3
 from datetime import date, datetime
 
 app = Flask(__name__)
-app.secret_key = "uncled_liga_pro_2026"
+app.secret_key = os.environ["SECRET_KEY"]
 
 INITIAL_RATING = 1000
 K_FACTOR = 24
