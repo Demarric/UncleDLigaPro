@@ -155,107 +155,6 @@ def get_dashboard_data():
         ORDER BY p.id DESC
     """).fetchall()
 
-    conn.close()
-
-    ratings, records, all_matches = calculate_ratings()
-
-    player_stats = []
-
-    for player, history in records.items():
-        played = len(history)
-        wins = history.count("W")
-        losses = played - wins
-
-        player_stats.append({
-            "name": player,
-            "played": played,
-            "wins": wins,
-            "losses": losses,
-            "percentage": round(wins / played * 100, 1),
-            "rating": round(ratings[player]),
-            "form": " ".join(history[-5:])
-        })
-
-    player_stats.sort(key=lambda x: x["rating"], reverse=True)
-
-    analytics = {
-        "prediction_count": prediction_count,
-        "correct": correct_count,
-        "incorrect": incorrect_count,
-        "pending": pending_count,
-        "evaluated": evaluated_count,
-        "accuracy": accuracy
-    }
-
-    return (
-        matches,
-        player_stats,
-        match_count,
-        player_count,
-        analytics,
-        prediction_history,
-        fixtures
-    )
-
-
-@app.route("/", methods=["GET", "POST"])
-
-def get_dashboard_data():
-    conn = connect_db()
-    cursor = conn.cursor()
-
-    matches = cursor.execute("""
-        SELECT * FROM matches ORDER BY id DESC
-    """).fetchall()
-
-    fixtures = cursor.execute("""
-        SELECT * FROM fixtures
-        ORDER BY scheduled_date ASC, id ASC
-    """).fetchall()
-
-    player_count = cursor.execute(
-        "SELECT COUNT(*) FROM players"
-    ).fetchone()[0]
-
-    match_count = cursor.execute(
-        "SELECT COUNT(*) FROM matches"
-    ).fetchone()[0]
-
-    prediction_count = cursor.execute(
-        "SELECT COUNT(*) FROM predictions"
-    ).fetchone()[0]
-
-    correct_count = cursor.execute("""
-        SELECT COUNT(*) FROM predictions
-        WHERE evaluated = 1
-        AND predicted_winner = actual_winner
-    """).fetchone()[0]
-
-    incorrect_count = cursor.execute("""
-        SELECT COUNT(*) FROM predictions
-        WHERE evaluated = 1
-        AND predicted_winner != actual_winner
-    """).fetchone()[0]
-
-    pending_count = cursor.execute("""
-        SELECT COUNT(*) FROM predictions
-        WHERE evaluated = 0
-    """).fetchone()[0]
-
-    evaluated_count = correct_count + incorrect_count
-
-    accuracy = (
-        round(correct_count / evaluated_count * 100, 1)
-        if evaluated_count else 0
-    )
-
-    prediction_history = cursor.execute("""
-        SELECT p.*, f.scheduled_date AS fixture_date
-        FROM predictions p
-        LEFT JOIN fixtures f ON p.fixture_id = f.id
-        ORDER BY p.id DESC
-    """).fetchall()
-
     # Daily prediction accuracy, grouped by prediction date.
     trend_rows = cursor.execute("""
         SELECT
@@ -377,6 +276,52 @@ def get_dashboard_data():
         prediction_leaderboard
     )
 
+
+@app.route("/", methods=["GET", "POST"])
+def dashboard():
+
+    if request.method == "POST":
+        player1 = request.form.get("player1", "").strip()
+        player2 = request.form.get("player2", "").strip()
+        choice = request.form.get("winner", "")
+        match_date = request.form.get("match_date", "")
+
+        winner = (
+            player1 if choice == "player1"
+            else player2 if choice == "player2"
+            else ""
+        )
+
+        if not all([player1, player2, winner, match_date]):
+            flash("Complete all match result fields.")
+
+        elif player1.lower() == player2.lower():
+            flash("Enter two different players.")
+
+        else:
+            conn = connect_db()
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                INSERT INTO matches
+                (player1, player2, winner, match_date)
+                VALUES (?, ?, ?, ?)
+            """, (player1, player2, winner, match_date))
+
+            for player in [player1, player2]:
+                cursor.execute("""
+                    INSERT OR IGNORE INTO players (name)
+                    VALUES (?)
+                """, (player,))
+
+            conn.commit()
+            conn.close()
+
+            flash("Completed match saved. No unrelated predictions were evaluated.")
+
+        return redirect("/")
+
+    return render_dashboard()
 
 
 def render_dashboard(prediction=None):
