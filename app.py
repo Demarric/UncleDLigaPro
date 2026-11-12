@@ -1,5 +1,5 @@
 
-from flask import Flask, render_template, request, redirect, flash
+from flask import Flask, render_template, request, redirect, flash, session
 import os
 import sqlite3
 from datetime import date, datetime
@@ -321,7 +321,8 @@ def dashboard():
 
         return redirect("/")
 
-    return render_dashboard()
+    prediction = session.pop("prediction", None)
+    return render_dashboard(prediction)
 
 
 def render_dashboard(prediction=None):
@@ -488,7 +489,8 @@ def predict():
         "confidence": confidence
     }
 
-    return render_dashboard(prediction)
+    session["prediction"] = prediction
+    return redirect("/")
 
 
 @app.route("/fixture/<int:fixture_id>/result", methods=["POST"])
